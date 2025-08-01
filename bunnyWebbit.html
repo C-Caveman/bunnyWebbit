@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<style>
+    /* Prevent links from being invisible when using night color: */
+    a {
+        color:red;
+    }
+</style>
+<head>
+</head>
+<body class="doNotEdit" id="pageBody" style="text-align: center; color: white; background-color: black;">
+
+
+
+<h1> Press &lt;w&gt; to web it up! </h1>
+<h2> Save this page, then open it from your file browser to make your own websites! </h2>
+<h2>Paste Lil' Webby into other pages to edit them!</h2>
+<p style="margin-left:33%; text-align:left;"> 
+    To copy him to your clipboard, press the 'Copy Editor To Clipboard' button in the edit menu above. <br>
+    You can then open any website and paste him into the javascript console there. <br>
+    To open your browser's javascript console: <br>
+    <ul style="margin-left:33%; text-align:left;">
+        <li>Chrome: Ctrl+Shift+j</li>
+        <li>Firefox: Ctrl+Shift+k</li>
+        <li>Brave: Ctrl+Shift+j</li>
+        <li>Internet Explorer: Ctrl+`</li>
+        <li>Safari: Cmd+Opt+c</li>
+        <li>Opera: Ctrl+Shift+i</li>
+    </ul><br>
+</p>
+<h1>Go forth and conquer the internet!</h1>
+
+</body>
+
+<script id="editorScript">
+    // This is Bunny Webbit, the website editor!
+    // Paste this at the bottom of any web page to edit!
+    //      (note: this works only with .html files on your local computer)
+    //
+    // You can find the latest version at: https://www.c-caveman.com/bunnyWebbit.html
+    //
+    //
+    //TODO: Format html before saving!
+    //          (add newlines after every '<' not followed by a '/', and use the right indent level!)
+    //TODO: Add left-align and center align options for templates!
+    //TODO: Add a shortcut for removing <br> elements!
+    //TODO: Hotkey for selecting parent.
+    //TODO: Highlight current hoveredElement.
+    //TODO: Consider testing prompt() as a replacement for the editBox!
+    //TODO: Add a fast way to delete stuff in mobile mode.
+    //TODO: Add a system where you paste a URL to "INVADE" a website with Lil' Webby!
+    //
+    const editorString = `
+        <div id="editor" style="color:white; background-color:black;">
+            <div style="margin-left: 33%;">
+                <button class="doNotEdit" id="helpButton" style="float:left" onclick="toggleHelpText()">Edit</button><br>
+                <ul class="doNotEdit" id="helpText" style="display: none; text-align: left;"> <br>
+                    <img style="width:200px; display:block;" src="https://i.imgur.com/C2SaUPe.png" title="Lil' Webby"><br>
+                    <li> <u>Bunny Webbit controls:</u> </li>
+                    <li> Hover your mouse over an item to select it.</li>
+                    <li> w: toggle webbiting</li>
+                    <li> e: edit element </li>
+                    <li> a: add element below </li>
+                    <li> A: add element above </li>
+                    <li> d: delete element </li>
+                    <li> l: turn selected text into a link (grabs URL from clipboard) </li>
+                    <li> s: save changes </li><br>
+                    <button class="doNotEdit" style="float:left" onclick="copyEditorToClipboard()">Copy Editor To Clipboard</button><br>
+                </ul>
+                <ul class="doNotEdit" id="mobileHelpText" style="display: none; text-align: left;"> <br>
+                    <img style="width:40%; height: 40%; background-size: cover;" src="https://i.imgur.com/C2SaUPe.png" title="Lil' Webby">
+                    <li> <u>Bunny Webbit controls:</u> </li>
+                    <li> touch and hold: edit element </li>
+                    <li> touble tap: add new element below </li>
+                    <button class="doNotEdit" id="mobileSaveButton" style="float:left; display:none;" onclick="saveFile()">Save Changes</button><button class="doNotEdit" style="float:left" onclick="copyEditorToClipboard()">Copy Editor To Clipboard</button><br>
+                </ul>
+            </div>
+            <div id="editDiv" style="width: 80%; text-align: center; display: none;">
+                <div id="container" style="text-align: left">
+                    <button id="saveButton" style="float:left" onclick="saveFile()">Save Changes</button><br>
+                    <p>Click an element to edit it here:</p>
+                    <form id="editForm" method="post">
+                        <textarea class="doNotEdit" id="editBox" cols="60" rows="20" name="rawHTMLcontents" type="text" placeholder="raw HTML of element">
+                    </form>
+                    <button id="deleteElementButton" onclick="deleteElement()" type="button">Delete Element</button>
+                    <br>
+                    <br id="endOfEditMenu">
+                </div>
+            </div>
+        </div><!-- endOfEditor -->
+    `
+    const editOptionsHTML = `
+    <div id="editOptions" name="options"><br>
+        <button onclick="addElement(this, 'title')">Title</button>
+        <button onclick="addElement(this, 'textCentered')">Description</button>
+        <button onclick="addElement(this, 'textUncentered')">Description(uncentered)</button>
+        <button onclick="addElement(this, 'link')">Link</button>
+        <button onclick="addElement(this, 'image')">Image</button>
+        <button onclick="addElement(this, 'video')">Video</button>
+        <br>
+        <button onclick="addElement(this, 'break')">Break</button>
+        <br>
+        <button onclick="addElement(this, 'textArea')">Text Box (can be edited with editor closed!)</button>
+        <br>
+        <button onclick="this.parentElement.remove()">Cancel</button>
+        <br><br>
+    </div>
+    `
+    // Put the editor at the top if it isn't already there:
+    if (document.querySelector('#editor') == null) {
+        document.body.insertAdjacentHTML('beforeBegin', editorString)
+    }
+    // Make everything big on mobile:
+    var isOnMobile = window.screen.width < 500 || window.screen.height < 500 // Not currently used...
+    document.head.insertAdjacentHTML('beforeend', '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">')
+    var isWebbiting = false
+    var selectedElement = null
+    var editedElement = null // temp storage for element being edited
+    var hoveredElement = null
+    var curEditBox = null
+    function isElementValid(e) {
+        // Can't be null, must be part of the document:
+        if (!e || !document.contains(e)) {
+            return false
+        }
+        // Don't edit critical components or the editor:
+        var isCriticalComponent = e.nodeName === 'HTML' || e.nodeName === 'BODY'
+        var isPartOfEditor = document.querySelector('#editor').contains(e) || document.querySelector('#editDiv').contains(e) || e.className == 'editorClone'
+        //console.log('Selected a:' + e.nodeName + '. isCriticalComponent:' + isCriticalComponent + ' isPartOfEditor: ' + isPartOfEditor)
+        return (!isPartOfEditor && !isCriticalComponent)
+    }
+    const templateOptions = new Map();
+    templateOptions.set('title', '<h1> @ </h1>')
+    templateOptions.set('image', '<img style="width:40%; height: 40%; background-size: cover;" src="@" />')
+    templateOptions.set('textCentered', '<p> @ <p>')
+    templateOptions.set('textUncentered', '<p style="margin-left:40%; text-align:left;"> @ <p>')
+    templateOptions.set('link', '<a target="_blank" href="@">link</a>')
+    templateOptions.set('video', '<Video width="80%" height="80%" controls> <source src="@" type="video/mp4"> </Video><br>')
+    templateOptions.set('break', '<br>')
+    templateOptions.set('textArea', `<textarea style="width:60%; background-color:black; color:white;" onkeyup='
+        this.innerHTML = this.value; 
+        var lineHeight = 20; 
+        var numLines = (
+            (this.textContent.match(/\\n/g) || []).length+1
+        ); 
+        this.style.height = (numLines*lineHeight) + "px";'>@</textArea>`)
+    // Replace 'editButton' with an editBox filled with a template!
+    function addElement(editButton, elementType) {
+        // Copy the editor's text box:
+        var editBox = document.querySelector('#editBox').cloneNode(true)
+        editBox.className = 'editorClone'
+        var elementToAddUnder = selectedElement
+        // Make sure selectedElement is valid:
+        if (!isElementValid(elementToAddUnder)) {
+            elementToAddUnder = document.getElementById('editDiv')
+            console.log('No valid element selected, selecting the editDiv before adding element...')
+        }
+        // Raw HTML template for the new element:
+        var templateToAdd = templateOptions.get(elementType)
+        if (templateToAdd && editBox) {
+            // Turn the editButtons into an editBox:
+            editButton.parentElement.outerHTML = editBox.outerHTML
+            // Grab the new editBox object:
+            var newEditBox = document.getElementsByClassName('editorClone')[0]
+            // Fill the editBox with the selected template:
+            newEditBox.value = templateToAdd.replace(/(^[ \t]*\n)/gm, '').replace(/>/g, '>\n').replace(/</g, '\n<')
+            newEditBox.focus();
+            var cursorStartPos = newEditBox.value.indexOf('@') // Put the cursor on the '@' marker.
+            newEditBox.value = newEditBox.value.replace('@',''); // Remove the '@' marker.
+            newEditBox.setSelectionRange(cursorStartPos, cursorStartPos); // Set cursor.
+            curEditBox = newEditBox
+        }
+        else {
+            console.log("Tried to insert a null template!!!")
+        }
+    }
+    // Insert the buttons for choosing a new element to add:
+    function insertAddElementButtons(insertionDirection) {
+        if (curEditBox) {
+            console.log('Not adding buttons because curEditBox is not null.')
+            return
+        }
+        console.log('Adding buttons!')
+        // Make a clone of the buttons for choosing a new element:
+        var selectorClone = document.createElement('div')
+        selectorClone.innerHTML = editOptionsHTML.trim()
+        selectorClone.style.display = 'inline'
+        selectorClone.className = "selectorClone"
+        var insertionDirection = 'afterend'
+        if (event.keyCode == keyAUpper) {
+            insertionDirection = 'beforeBegin'
+        }
+        if (isElementValid(selectedElement)) {
+            console.log('Adding buttons relative to a: ' + selectedElement.nodeName)
+            selectedElement.insertAdjacentHTML(insertionDirection, editOptionsHTML)
+        }
+        else {
+            var firstBody = document.querySelector('body')
+            console.log('Selection invalid, choosing a default location to add from...')
+            if (firstBody) {
+                console.log('Adding from inside the body.')
+                firstBody.insertBefore(selectorClone, firstBody.firstChild) // Works even if firstChild is null!
+            }
+            else {
+                console.log('Adding from after the editor div(no body element found)...')
+                document.querySelector('#editor').insertAdjacentHTML('afterend', selectorClone.outerHTML)
+            }
+        }
+    }
+    function editSelectedElement() {
+        if (!isElementValid(selectedElement)) {
+            return
+        }
+        // Don't write the 'e' into the form!
+        // Save the original element:
+        editedElement = selectedElement.cloneNode(true)
+        // Copy the editor's text box:
+        var editorClone = document.querySelector('#editBox').cloneNode(true)
+        editorClone.className = "editorClone"
+        // Replace the selectedElement with the edit box clone:
+        selectedElement.outerHTML = editorClone.outerHTML
+        selectedElement = document.getElementsByClassName('editorClone')[0]
+        selectedElement.focus()
+        selectedElement.value = editedElement.outerHTML.replace(/(^[ \t]*\n)/gm, '').replace(/>/g, '>\n').replace(/</g, '\n<');
+        selectedElement.setSelectionRange(0,0)
+        var cursorStartPos = selectedElement.value.indexOf('>') + 2 // Put the cursor after the first '>'.
+        selectedElement.setSelectionRange(cursorStartPos, cursorStartPos); // Set cursor.
+        curEditBox = selectedElement
+    }
+    function deleteElement() {
+        if (selectedElement) {
+            selectedElement.remove()
+            document.querySelector('#editBox').value = ""
+            selectedElement = null
+        }
+    }
+    function editCancel() {
+        selectedElement = null
+        document.querySelector('#editBox').value = ""
+    }
+    function editCancel() {
+        selectedElement = null
+        document.querySelector('#editBox').value = ""
+    }
+    function replaceRange(s, start, end, substitute) {
+        return s.substring(0, start) + substitute + s.substring(end);
+    }
+    var highlightedElement = null
+    var highlightedText = ''
+    // Turn the highlightedText into a link:
+    async function linkify() {
+        var clipboardContents = ''
+        try {
+            clipboardContents = await navigator.clipboard.readText();
+            console.log('Copied text from clipboard: ' + clipboardContents);
+        } catch (error) {
+            console.error(error);
+        }
+        if (isElementValid(highlightedElement)) {
+            var start = window.getSelection().anchorOffset
+            var end = window.getSelection().focusOffset
+            var replacement = '<a target="_blank" href="' + clipboardContents + '">' + highlightedText + '</a>'
+            highlightedElement.innerHTML = highlightedElement.innerHTML.replace(highlightedText, replacement)
+        }
+    }
+    // Update highlightedText and highlightedElement (set to be called on 'mouseup' later):
+    function getSelText() {
+        highlightedText = ''
+        if (window.getSelection) {
+            highlightedText = window.getSelection()
+        }
+        else if (document.getSelection) {
+            highlightedText = document.getSelection()
+        }
+        else if (document.selection) {
+            highlightedText = document.selection.createRange().text
+        }
+        else {
+            return
+        }
+        highlightedElement =  window.getSelection().anchorNode.parentNode
+        console.log('highlightedElement is: ' + highlightedElement.nodeName)
+    }
+    var mylatesttap;
+    function detectDoubleTap() {
+        var now = new Date().getTime();
+        var timesince = now - mylatesttap;
+        if((timesince < 600) && (timesince > 0) && isWebbiting && isOnMobile) {
+            //double tapped!
+            insertAddElementButtons('afterend')
+        }
+        mylatesttap = new Date().getTime();
+    }
+    var pressHeld = false; // For detecting long presses.
+    if (!isOnMobile) {
+        // Track the currently hovered element:
+        document.addEventListener('mouseover', function(e) {
+            var isUnclickable = false
+            if (e.target.className == 'doNotEdit' || document.querySelector('#editor').contains(e.target)) {
+                isUnclickable = true
+                return
+            }
+            if (e.target && !isUnclickable) {
+                hoveredElement = e.target
+                //console.log('Hovering over a ' + hoveredElement.nodeName);
+            }
+        });
+        // Get highlighted text when mouse click is released:
+        document.addEventListener('mouseup', function(e) {
+            e.preventDefault()
+            detectDoubleTap()
+            var isUnclickable = false
+            if (e.target.className == 'doNotEdit' || document.querySelector('#editor').contains(e.target)) {
+                isUnclickable = true
+                return
+            }
+            if (e.target && !isUnclickable && !curEditBox) { // if curEditBox is not null, we are editing somewhere else!
+                getSelText()
+            }
+        });
+    }
+    else {
+        // Track the last touched element (add buttons if double tapped):
+        document.addEventListener('touchstart', function(e) {
+            e.preventDefault()
+            detectDoubleTap()
+            var isUnclickable = false
+            if (e.target.className == 'doNotEdit' || document.querySelector('#editor').contains(e.target)) {
+                isUnclickable = true
+                return
+            }
+            if (e.target && !isUnclickable && !curEditBox) { // if curEditBox is not null, we are editing somewhere else!
+                hoveredElement = e.target
+                selectedElement = e.target
+            }
+        });
+        // Detect long press:
+        window.addEventListener('touchstart', function() {
+            pressHeld = true;
+            setTimeout(function() {
+                if(pressHeld && isWebbiting) {
+                    editSelectedElement()
+                }
+                pressHeld = false;
+            }, 500);
+        });
+        window.addEventListener('touchend', function() {
+            pressHeld = false;
+        });
+        // Show the button for saving the changes:
+        document.querySelector('#mobileSaveButton').style.display = 'inline'
+    }
+    // For making TAB actually indent stuff:
+    function insertAtCursor(myField, myValue) {
+        //IE support
+        if (document.selection) {
+            myField.focus();
+            const sel = document.selection.createRange();
+            sel.text = myValue;
+        }
+        //MOZILLA and others
+        else if (myField.selectionStart || myField.selectionStart == '0') {
+            var startPos = myField.selectionStart;
+            var endPos = myField.selectionEnd;
+            myField.value = myField.value.substring(0, startPos)
+                + myValue
+                + myField.value.substring(endPos, myField.value.length);
+            myField.selectionStart = startPos + myValue.length; 
+            myField.selectionEnd = startPos + myValue.length;
+        } else {
+            myField.value += myValue;
+        }
+    }
+    // Detect key presses:
+    const keyA = 97
+    const keyAUpper = 65
+    const keyD = 100
+    const keyE = 101
+    const keyEnter = 13
+    const keyW = 119
+    const keyS = 115
+    const keyL = 108
+    const keyTab = 9
+    document.addEventListener("keydown", function(event) {
+        // Make TAB indent when inside a text box:
+        if (event.keyCode == keyTab && document.activeElement && document.activeElement.nodeName == 'TEXTAREA') {
+            event.preventDefault()
+            console.log('doi!')
+            insertAtCursor(document.activeElement, '    ')
+        }
+    });
+    document.addEventListener("keypress", function(event) {
+        //alert('Code: ' + event.keyCode)
+        // Ignore key presses when typing in the edit box:
+        if (document.activeElement && document.activeElement.id == 'editBox' && event.keyCode != keyEnter) {
+            //alert('Focused!');
+            return;
+        }
+        else if (isElementValid(hoveredElement)) {
+            selectedElement = hoveredElement
+        }
+        // Hotkeys only enabled when isWebbiting:
+        if (!isWebbiting) {
+            var inTextArea = (document.activeElement && document.activeElement.nodeName == 'TEXTAREA')
+            if (event.keyCode == keyW && !inTextArea) {
+                toggleHelpText()
+            }
+            if (inTextArea) {
+                console.log('Ignoring <w> press due to being in a textarea element.')
+            }
+            else {
+                console.log('Active element: ' + document.activeElement.nodeName)
+            }
+            return
+        }
+        switch(event.keyCode){
+            case(keyAUpper): {
+                insertAddElementButtons('beforeBegin')
+                break
+            }
+            case(keyA): {
+                insertAddElementButtons('afterend')
+                break
+            }
+            // Delete an element:
+            case(keyD): {
+                deleteElement()
+                break
+            }
+            // Edit an element:
+            case(keyE): {
+                event.preventDefault() // Don't type the 'e' into the edit box!
+                editSelectedElement()
+                break
+            }
+            // Confirm edit to element:
+            case(keyEnter): {
+                if (!curEditBox) {
+                    break
+                }
+                //console.log('Confirming edit: ' + document.getElementsByClassName('editorClone')[0].value)
+                curEditBox.outerHTML = document.getElementsByClassName('editorClone')[0].value
+                //curEditBox.insertAdjacentHTML('beforeBegin', '\n') 
+                curEditBox = null
+                break
+            }
+            case(keyW): {
+                toggleHelpText()
+                break
+            }
+            case(keyS): {
+                saveFile()
+                break
+            }
+            case(keyL): {
+                if (highlightedText != '' && highlightedElement) {
+                    console.log('linkifying selection: ' + highlightedText)
+                    linkify()
+                }
+                break
+            }
+            default: {
+                break
+            }
+        }
+   
+    });
+    function toggleHelpText() {
+        isWebbiting = !isWebbiting
+        var helpTextDiv = document.querySelector('#helpText')
+        if (isOnMobile) {
+            helpTextDiv = document.querySelector('#mobileHelpText')
+        }
+        var helpButton = document.querySelector('#helpButton')
+        if (helpTextDiv.style.display == 'none') {
+            helpTextDiv.style.display = 'inline'
+            helpButton.innerHTML = 'Stop Webbiting'
+        }
+        else {
+            helpTextDiv.style.display = 'none'
+            helpButton.innerHTML = 'Edit'
+        }
+    }
+    function saveFile() {
+        toggleHelpText()
+        // Remove Webby so we don't end up with clones!
+        document.getElementById("editor").remove()
+        var documentText = document.querySelector("html").outerHTML
+        const blob = new Blob([documentText], { type: 'text/html' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        // Set filename from the current URL:
+        link.download = window.location.href.replace(/^.*[\\/]/, '');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        // Put Webby back at the top again:
+        document.body.insertAdjacentHTML('beforeBegin', editorString)
+    }   
+    function copyEditorToClipboard() {
+        var scriptString = document.querySelector('#editorScript').innerHTML
+        async function setClipboard(text) {
+            await navigator.clipboard.writeText(text);
+        }
+        setClipboard(scriptString)
+    }
+</script>
+
+</html> <!-- Don't need to copy the /html bit here. !-->
