@@ -1,2 +1,6 @@
+# Ignore every file:
+*
+# Except these:
 !.gitignore
 !bunnyWebbit.html
+!README.html
